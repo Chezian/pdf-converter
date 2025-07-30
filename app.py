@@ -5,6 +5,11 @@ from fpdf import FPDF
 from PIL import Image
 import pandas as pd
 import tempfile
+import docx
+import locale
+
+# Force UTF-8 Encoding for English Locale
+locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
 
 app = Flask(__name__)
 UPLOAD_FOLDER = tempfile.gettempdir()
@@ -28,13 +33,35 @@ def convert():
     output_pdf = os.path.join(app.config['UPLOAD_FOLDER'], f"{os.path.splitext(filename)[0]}.pdf")
 
     try:
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_auto_page_break(auto=True, margin=15)
+        pdf.set_font("Arial", size=12)
+
         if ext == ".txt":
             with open(filepath, 'r', encoding='utf-8') as f:
                 text = f.read()
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_auto_page_break(auto=True, margin=15)
-            pdf.set_font("Arial", size=12)
+            for line in text.split('\n'):
+                pdf.cell(200, 10, txt=line, ln=1)
+            pdf.output(output_pdf)
+
+        elif ext == ".csv":
+            df = pd.read_csv(filepath)
+            text = df.to_string(index=False)
+            for line in text.split('\n'):
+                pdf.cell(200, 8, txt=line, ln=1)
+            pdf.output(output_pdf)
+
+        elif ext == ".xlsx":
+            df = pd.read_excel(filepath)
+            text = df.to_string(index=False)
+            for line in text.split('\n'):
+                pdf.cell(200, 8, txt=line, ln=1)
+            pdf.output(output_pdf)
+
+        elif ext == ".docx":
+            doc = docx.Document(filepath)
+            text = '\n'.join([para.text for para in doc.paragraphs])
             for line in text.split('\n'):
                 pdf.cell(200, 10, txt=line, ln=1)
             pdf.output(output_pdf)
@@ -43,26 +70,6 @@ def convert():
             image = Image.open(filepath)
             rgb_image = image.convert('RGB')
             rgb_image.save(output_pdf)
-
-        elif ext == ".csv":
-            df = pd.read_csv(filepath)
-            text = df.to_string(index=False)
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", size=10)
-            for line in text.split('\n'):
-                pdf.cell(200, 8, txt=line, ln=1)
-            pdf.output(output_pdf)
-
-        elif ext == ".xlsx":
-            df = pd.read_excel(filepath)
-            text = df.to_string(index=False)
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", size=10)
-            for line in text.split('\n'):
-                pdf.cell(200, 8, txt=line, ln=1)
-            pdf.output(output_pdf)
 
         else:
             return "Unsupported file format"
@@ -73,4 +80,9 @@ def convert():
         return f"Error during conversion: {e}"
 
     finally:
-        os.remove(filepath)
+        # Don't delete output_pdf so user can download it
+        if os.path.exists(filepath):
+            os.remove(filepath)
+
+if __name__ == '__main__':
+    app.run(debug=True)
