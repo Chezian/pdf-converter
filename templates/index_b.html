@@ -77,17 +77,6 @@
             font-size: 14px;
             color: #999;
         }
-
-        .recaptcha-notice {
-            font-size: 12px;
-            color: #aaa;
-            margin-top: 20px;
-        }
-
-        .recaptcha-notice a {
-            color: #aaa;
-            text-decoration: underline;
-        }
     </style>
 </head>
 <body>
@@ -114,6 +103,7 @@
     <form id="uploadForm" action="/convert" method="post" enctype="multipart/form-data">
         <input type="file" name="file" accept=".txt,.docx,.csv,.xlsx,.jpg,.jpeg,.png,.pptx,.html,.md,.json,.xml" required><br>
         <small>Max file size: 10 MB</small>
+        <!-- Hidden input for reCAPTCHA token -->
         <input type="hidden" name="recaptcha_token" id="recaptcha_token">
         <button type="submit">Convert to PDF</button>
     </form>
@@ -122,21 +112,14 @@
         Supports text, Word, Excel, image, PowerPoint, HTML, Markdown, JSON, and XML files.
     </div>
 
-    <!-- ✅ Required by Google for reCAPTCHA v3 -->
-    <div class="recaptcha-notice">
-        This site is protected by reCAPTCHA and the Google
-        <a href="https://policies.google.com/privacy" target="_blank">Privacy Policy</a> and
-        <a href="https://policies.google.com/terms" target="_blank">Terms of Service</a> apply.
-    </div>
-
     <script>
         const form = document.getElementById('uploadForm');
         form.addEventListener('submit', function (e) {
             e.preventDefault();
             grecaptcha.ready(function () {
-                grecaptcha.execute('6LdU8IciAAAAAKM-z4kVH8O2fNJHXkDX-4Q4Y6ji', { action: 'submit' }).then(function (token) {
+                grecaptcha.execute('6LdU8IciAAAAAKM-z4kVH8O2fNJHXkDX-4Q4Y6ji', {action: 'submit'}).then(function (token) {
                     document.getElementById('recaptcha_token').value = token;
-                    form.submit();
+                    form.submit(); // ✅ Submit after token is set
                 });
             });
         });
