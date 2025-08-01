@@ -15,6 +15,7 @@ from pptx import Presentation
 import tempfile
 import threading
 import time
+import requests  # ✅ For reCAPTCHA
 
 UPLOAD_FOLDER = os.path.join(os.getcwd(), "uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -30,6 +31,19 @@ def index():
 @app.route('/convert', methods=['POST'])
 def convert():
     try:
+        # ✅ Verify reCAPTCHA
+        recaptcha_token = request.form.get('recaptcha_token')
+        recaptcha_secret = "6LdU8IciAAAAAFm5f4o9qu_3NWe3z3_XN2sNss41"
+        recaptcha_url = "https://www.google.com/recaptcha/api/siteverify"
+        recaptcha_response = requests.post(
+            recaptcha_url,
+            data={'secret': recaptcha_secret, 'response': recaptcha_token}
+        )
+        result = recaptcha_response.json()
+        if not result.get("success") or result.get("score", 0) < 0.5:
+            return "reCAPTCHA verification failed. Please try again.", 403
+
+        # ✅ Proceed with file processing
         file = request.files.get('file')
         if not file or file.filename == '':
             return "No file selected"
@@ -116,7 +130,7 @@ def convert():
         else:
             return "Unsupported file format"
 
-        # Cleanup uploaded and converted files after sending
+        # ✅ Cleanup files after response
         @after_this_request
         def cleanup(response):
             def delete_files_later():
@@ -137,7 +151,7 @@ def convert():
         traceback.print_exc()
         return f"Error during conversion: {e}"
 
-# ✅ Handle oversized file upload error
+# ✅ Handle large file uploads
 @app.errorhandler(RequestEntityTooLarge)
 def handle_large_file(e):
     return "File too large. Maximum allowed size is 10 MB.", 413

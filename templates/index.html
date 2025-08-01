@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>PDF Converter</title>
+    <script src="https://www.google.com/recaptcha/api.js?render=6LdU8IciAAAAAKM-z4kVH8O2fNJHXkDX-4Q4Y6ji"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -99,15 +100,30 @@
     </div>
 
     <!-- File Upload Form -->
-    <form action="/convert" method="post" enctype="multipart/form-data">
+    <form id="uploadForm" action="/convert" method="post" enctype="multipart/form-data">
         <input type="file" name="file" accept=".txt,.docx,.csv,.xlsx,.jpg,.jpeg,.png,.pptx,.html,.md,.json,.xml" required><br>
         <small>Max file size: 10 MB</small>
+        <!-- Hidden input for reCAPTCHA token -->
+        <input type="hidden" name="recaptcha_token" id="recaptcha_token">
         <button type="submit">Convert to PDF</button>
     </form>
 
     <div class="footer">
         Supports text, Word, Excel, image, PowerPoint, HTML, Markdown, JSON, and XML files.
     </div>
+
+    <script>
+        const form = document.getElementById('uploadForm');
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            grecaptcha.ready(function () {
+                grecaptcha.execute('6LdU8IciAAAAAKM-z4kVH8O2fNJHXkDX-4Q4Y6ji', {action: 'submit'}).then(function (token) {
+                    document.getElementById('recaptcha_token').value = token;
+                    form.submit(); // ✅ Submit after token is set
+                });
+            });
+        });
+    </script>
 
 </body>
 </html>
