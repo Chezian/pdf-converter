@@ -48,13 +48,7 @@
 
         input[type="file"] {
             padding: 10px;
-            margin-bottom: 5px;
-        }
-
-        small {
-            display: block;
-            margin-bottom: 15px;
-            color: #999;
+            margin-bottom: 20px;
         }
 
         button {
@@ -101,7 +95,6 @@
     <!-- File Upload Form -->
     <form action="/convert" method="post" enctype="multipart/form-data">
         <input type="file" name="file" accept=".txt,.docx,.csv,.xlsx,.jpg,.jpeg,.png,.pptx,.html,.md,.json,.xml" required><br>
-        <small>Max file size: 10 MB</small>
         <button type="submit">Convert to PDF</button>
     </form>
 

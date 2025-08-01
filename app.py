@@ -1,19 +1,27 @@
-from flask import Flask, request, render_template, send_file
+from flask import Flask, request, render_template, send_file, after_this_request
 from werkzeug.utils import secure_filename
+from werkzeug.exceptions import RequestEntityTooLarge
 import os
 from fpdf import FPDF
 from PIL import Image
 import pandas as pd
-import tempfile
 import docx
+import markdown2
 import traceback
+import json
+import xml.etree.ElementTree as ET
+from weasyprint import HTML
+from pptx import Presentation
+import tempfile
+import threading
+import time
 
-app = Flask(__name__)
-
-# Upload folder setup
 UPLOAD_FOLDER = os.path.join(os.getcwd(), "uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10 MB limit
 
 @app.route('/')
 def index():
@@ -40,42 +48,88 @@ def convert():
 
         if ext == ".txt":
             with open(filepath, 'r', encoding='utf-8') as f:
-                text = f.read()
-            for line in text.split('\n'):
-                pdf.cell(200, 10, txt=line, ln=1)
+                for line in f:
+                    pdf.cell(200, 10, txt=line.strip(), ln=1)
             pdf.output(output_pdf)
 
         elif ext == ".csv":
             df = pd.read_csv(filepath)
-            text = df.to_string(index=False)
-            for line in text.split('\n'):
-                pdf.cell(200, 8, txt=line, ln=1)
+            for line in df.to_string(index=False).split('\n'):
+                pdf.cell(200, 8, txt=line.strip(), ln=1)
             pdf.output(output_pdf)
 
         elif ext == ".xlsx":
             df = pd.read_excel(filepath)
-            text = df.to_string(index=False)
-            for line in text.split('\n'):
-                pdf.cell(200, 8, txt=line, ln=1)
+            for line in df.to_string(index=False).split('\n'):
+                pdf.cell(200, 8, txt=line.strip(), ln=1)
             pdf.output(output_pdf)
 
         elif ext == ".docx":
-            doc_file = docx.Document(filepath)
-            text = '\n'.join([para.text for para in doc_file.paragraphs])
-            for line in text.split('\n'):
-                pdf.cell(200, 10, txt=line, ln=1)
+            doc = docx.Document(filepath)
+            for para in doc.paragraphs:
+                pdf.cell(200, 10, txt=para.text.strip(), ln=1)
             pdf.output(output_pdf)
 
         elif ext in [".jpg", ".jpeg", ".png"]:
-            image = Image.open(filepath)
-            rgb_image = image.convert('RGB')
-            rgb_image.save(output_pdf)
+            img = Image.open(filepath)
+            img_rgb = img.convert('RGB')
+            img_rgb.save(output_pdf)
+
+        elif ext == ".pptx":
+            try:
+                prs = Presentation(filepath)
+                for slide in prs.slides:
+                    text = "\n".join([shape.text for shape in slide.shapes if hasattr(shape, "text")])
+                    for line in text.split('\n'):
+                        pdf.cell(200, 10, txt=line.strip(), ln=1)
+                pdf.output(output_pdf)
+            except Exception as e:
+                return f"Error reading .pptx file: {e}"
+
+        elif ext == ".html":
+            HTML(filename=filepath).write_pdf(output_pdf)
+
+        elif ext == ".md":
+            with open(filepath, 'r', encoding='utf-8') as f:
+                html = markdown2.markdown(f.read())
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".html", mode='w', encoding='utf-8') as tmp:
+                tmp.write(html)
+                tmp.close()
+                HTML(tmp.name).write_pdf(output_pdf)
+
+        elif ext == ".json":
+            with open(filepath, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                pretty = json.dumps(data, indent=4)
+                for line in pretty.split('\n'):
+                    pdf.cell(200, 10, txt=line.strip(), ln=1)
+            pdf.output(output_pdf)
+
+        elif ext == ".xml":
+            tree = ET.parse(filepath)
+            root = tree.getroot()
+            xml_str = ET.tostring(root, encoding='unicode')
+            for line in xml_str.split('\n'):
+                pdf.cell(200, 10, txt=line.strip(), ln=1)
+            pdf.output(output_pdf)
 
         else:
             return "Unsupported file format"
 
-        if not os.path.exists(output_pdf):
-            return "Error: PDF was not created."
+        # Cleanup uploaded and converted files after sending
+        @after_this_request
+        def cleanup(response):
+            def delete_files_later():
+                time.sleep(5)
+                for f in [filepath, output_pdf]:
+                    try:
+                        if os.path.exists(f):
+                            os.remove(f)
+                            print(f"Deleted: {f}")
+                    except Exception as e:
+                        print(f"Error deleting {f}: {e}")
+            threading.Thread(target=delete_files_later).start()
+            return response
 
         return send_file(output_pdf, as_attachment=True)
 
@@ -83,13 +137,10 @@ def convert():
         traceback.print_exc()
         return f"Error during conversion: {e}"
 
-    finally:
-        # Clean up uploaded file (but keep output_pdf for download)
-        if os.path.exists(filepath):
-            try:
-                os.remove(filepath)
-            except:
-                pass
+# ✅ Handle oversized file upload error
+@app.errorhandler(RequestEntityTooLarge)
+def handle_large_file(e):
+    return "File too large. Maximum allowed size is 10 MB.", 413
 
 if __name__ == '__main__':
     app.run(debug=True)
