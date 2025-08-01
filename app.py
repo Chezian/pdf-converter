@@ -157,4 +157,6 @@ def handle_large_file(e):
     return "File too large. Maximum allowed size is 10 MB.", 413
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 10000))  # Use PORT from Render if available
+    app.run(host='0.0.0.0', port=port, debug=True)
+
